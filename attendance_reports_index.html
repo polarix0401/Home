@@ -189,20 +189,6 @@
   <!-- Section 2 Chart -->
   <div class="chart-box"><canvas id="kidTimelineChart"></canvas></div>
 
-  <!-- Section 2 Table -->
-<h3>Individual Kid – Detailed Records</h3>
-<table id="kidDetailsTable">
-  <thead>
-    <tr>
-      <th>Check-in</th>
-      <th>Check-out</th>
-      <th>Duration</th>
-      <th>Notes</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
-
   <!-- Loading overlay -->
   <div id="loading">Loading…</div>
 
@@ -440,7 +426,7 @@ function loadIndividual() {
   google.script.run
     .withSuccessHandler(data => {
       renderIndividual(data, grp);
-      loadDetails(from, to, kid);      // ← load the detail rows too
+      // loadDetails(from, to, kid); // ← removed
     })
     .withFailureHandler(e=>{ setLoading(false); alert(e.message); })
     .getReportData(grp, from, to, kid);
