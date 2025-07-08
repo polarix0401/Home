@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+
+  <!-- Chart.js core -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Luxon for time scales -->
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+  <!-- Data labels plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      padding: 20px;
+      background: #f9f9f9;
+    }
+    .controls {
+      display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; align-items: center;
+    }
+    .controls label {
+      display: flex; flex-direction: column; font-size: 0.9em;
+    }
+    .controls select,
+    .controls input,
+    .controls button {
+      padding: 6px 8px; font-size: 1em;
+    }
+    .controls button {
+      background: #4285F4; color: #fff; border: none; border-radius: 4px;
+      cursor: pointer; transition: background .2s;
+    }
+    .controls button:hover { background: #3073E5; }
+
+    #loading {
+      position: fixed; top:0;left:0;right:0;bottom:0;
+      background: rgba(255,255,255,0.7);
+      display: flex; align-items:center; justify-content:center;
+      font-size:1.5em; color:#333; visibility:hidden;
+    }
+
+    .charts { display:flex; gap:20px; flex-wrap:wrap; }
+    .chart-box {
+      flex:1; min-width:300px; height:300px;        /* fixed height */
+    }
+    canvas {
+      width:100% !important; height:100% !important; margin-top:20px;
+    }
+
+    #noData {
+      margin:20px 0; text-align:center; color:#666; display:none;
+    }
+
+    table#reportTable,
+    table#kidTable {
+      width:100%; border-collapse:collapse; margin-top:20px;
+    }
+    table#reportTable th,
+    table#reportTable td,
+    table#kidTable th,
+    table#kidTable td {
+      border:1px solid #ddd; padding:8px; text-align:left;
+    }
+    table#reportTable th,
+    table#kidTable th {
+      background:#f5f5f5;
+    }
+
+    .summary {
+      margin:10px 0;
+    }
+    /* card wrapper */
+    #kidDetailsTable {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5em 0;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+
+    /* header */
+    #kidDetailsTable thead th {
+      background-color: #4285F4;
+      color: #fff;
+      text-transform: uppercase;
+      font-size: 0.9em;
+      letter-spacing: 0.05em;
+      padding: 12px 15px;
+      text-align: left;
+    }
+
+    /* body rows */
+    #kidDetailsTable tbody tr {
+      background-color: #fff;
+      transition: background 0.2s;
+    }
+    #kidDetailsTable tbody tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    #kidDetailsTable tbody tr:hover {
+      background-color: #e8f0fe;
+    }
+
+    /* cells */
+    #kidDetailsTable td {
+      padding: 10px 15px;
+      border-bottom: 1px solid #e0e0e0;
+      font-size: 0.95em;
+    }
+
+    /* responsive wrapper (optional) */
+    .table-container {
+      overflow-x: auto;
+    }
+
+  </style>
+</head>
+<body>
+  <h2>Attendance Reports</h2>
+
+  <!-- Section 1 Controls -->
+  <div class="controls">
+    <label>From: <input type="date" id="startDate"></label>
+    <label>To:   <input type="date" id="endDate"></label>
+    <label>Group by:
+      <select id="granularity">
+        <option value="day">Day</option>
+        <option value="week">Week</option>
+        <option value="month">Month</option>
+      </select>
+    </label>
+    <label>Student:
+      <select id="studentFilter"><option value="">All Students</option></select>
+    </label>
+    <button id="refresh">Refresh</button>
+    <button id="export">Export</button>
+  </div>
+
+  <!-- Section 1 Totals -->
+  <div class="summary">
+    <strong>Visits:</strong> <span id="totalVisits">–</span>
+    &nbsp;&nbsp;
+    <strong>Hours:</strong> <span id="totalHours">–</span>
+  </div>
+  <div id="noData">No data for selected range/student.</div>
+
+  <!-- Section 1 Charts -->
+  <div class="charts">
+    <div class="chart-box"><canvas id="timelineChart"></canvas></div>
+    <div class="chart-box"><canvas id="studentChart"></canvas></div>
+  </div>
+
+  <!-- Section 1 Table -->
+  <table id="reportTable">
+    <thead><tr><th>Type</th><th>Key</th><th>Value</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- Section 2: Individual Kid Report -->
+  <h3>Individual Kid Report</h3>
+  <div class="controls">
+    <label>Kid:
+      <select id="kidFilter"><option value="">Select Kid</option></select>
+    </label>
+    <label>From: <input type="date" id="kidStart"></label>
+    <label>To:   <input type="date" id="kidEnd"></label>
+    <label>Group by:
+      <select id="kidGranularity">
+        <option value="day">Day</option>
+        <option value="week">Week</option>
+        <option value="month">Month</option>
+      </select>
+    </label>
+    <button id="refreshKid">Show Report</button>
+    <button id="exportKid">Export Kid Data</button>
+  </div>
+
+  <!-- Section 2 Summary -->
+  <div class="summary">
+    <strong>Kid Visits:</strong> <span id="kidVisits">–</span>
+    &nbsp;&nbsp;
+    <strong>Kid Hours:</strong> <span id="kidHours">–</span>
+  </div>
+
+  <!-- Section 2 Chart -->
+  <div class="chart-box"><canvas id="kidTimelineChart"></canvas></div>
+
+  <!-- Section 2 Table -->
+<h3>Individual Kid – Detailed Records</h3>
+<table id="kidDetailsTable">
+  <thead>
+    <tr>
+      <th>Check-in</th>
+      <th>Check-out</th>
+      <th>Duration</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+
+  <table id="kidTable">
+    <thead><tr><th>Date</th><th>Visits</th><th>Hours</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- Loading overlay -->
+  <div id="loading">Loading…</div>
+
+  <script>
+    // ── DOM refs ─────────────────────────────────────────
+    const sd   = document.getElementById('startDate'),
+          ed   = document.getElementById('endDate'),
+          gr   = document.getElementById('granularity'),
+          st   = document.getElementById('studentFilter'),
+          btnR = document.getElementById('refresh'),
+          btnE = document.getElementById('export'),
+          noD  = document.getElementById('noData'),
+          loadO= document.getElementById('loading');
+
+    const ctxT = document.getElementById('timelineChart').getContext('2d'),
+          ctxS = document.getElementById('studentChart').getContext('2d');
+
+    let chartT, chartS;       // Section 1 chart instances
+    const ctxKid = document.getElementById('kidTimelineChart').getContext('2d');
+    let chartKid;             // Section 2 chart instance
+
+    // ── Utility ─────────────────────────────────────────
+    function setLoading(on) {
+      loadO.style.visibility = on ? 'visible' : 'hidden';
+      [btnR, btnE, sd, ed, gr, st].forEach(el=>el.disabled=on);
+      // also disable Section 2 controls while loading
+      ['kidFilter','kidStart','kidEnd','kidGranularity','refreshKid','exportKid']
+        .map(id=>document.getElementById(id))
+        .forEach(el=>el.disabled=on);
+    }
+
+    // ── Populate both dropdowns ─────────────────────────
+    google.script.run.withSuccessHandler(list=>{
+      list.forEach(s=>{
+        const o1 = document.createElement('option');
+        o1.value = s.id; o1.textContent = s.name;
+        st.appendChild(o1);
+
+        const o2 = document.createElement('option');
+        o2.value = s.id; o2.textContent = `${s.name} (${s.id})`;
+        document.getElementById('kidFilter').appendChild(o2);
+      });
+    }).getStudentList();
+
+    // ── Section 1: Render & Load ───────────────────────
+    function render(data) {
+      setLoading(false);
+      // totals
+      const tv = data.totalVisits||0,
+            th = (data.totalHours||0).toFixed(2);
+      document.getElementById('totalVisits').innerText = tv;
+      document.getElementById('totalHours').innerText = th;
+
+      if (!tv) {
+        noD.style.display = 'block';
+        Chart.getChart(ctxT.canvas)?.destroy();
+        Chart.getChart(ctxS.canvas)?.destroy();
+        document.querySelector('#reportTable tbody').innerHTML = '';
+        return;
+      } else {
+        noD.style.display = 'none';
+      }
+
+      // hours bar (Section 1 uses timelineHours)
+      const hoursEntries = Object.entries(data.timelineHours||{})
+                                .map(([k,v])=>[new Date(k),v])
+                                .sort((a,b)=>a[0]-b[0]);
+      const labelsH = hoursEntries.map(e=>e[0]),
+            valsH   = hoursEntries.map(e=>e[1]);
+      Chart.getChart(ctxT.canvas)?.destroy();
+      chartT = new Chart(ctxT, {
+        type:'bar',
+        data:{ labels:labelsH, datasets:[{
+          label:'Hours',
+          data:valsH,
+          backgroundColor:'rgba(66,133,244,0.6)'
+        }]},
+        options:{
+          animation:false,
+          responsive:true,
+          maintainAspectRatio:false,
+          scales:{ x:{type:'time',time:{unit:gr.value}}, y:{beginAtZero:true} },
+          plugins:{ datalabels:{display:true,formatter:v=>v.toFixed(1)+'h'} }
+        },
+        plugins:[ChartDataLabels]
+      });
+
+      // pie chart
+      const stats = Object.values(data.studentStats||{}),
+            names = stats.map(s=>s.name),
+            hrs   = stats.map(s=>s.hours.toFixed(1));
+      Chart.getChart(ctxS.canvas)?.destroy();
+      chartS = new Chart(ctxS,{
+        type:'pie',
+        data:{ labels:names, datasets:[{data:hrs}]},
+        options:{ animation:false,responsive:true,maintainAspectRatio:false,
+          plugins:{ legend:{position:'bottom'} }
+        }
+      });
+
+      // table
+      const tb = document.querySelector('#reportTable tbody');
+      tb.innerHTML = '';
+      hoursEntries.forEach(([dt,h])=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>Timeline</td><td>${dt.toLocaleDateString()}</td><td>${h.toFixed(1)}h</td>`;
+        tb.appendChild(tr);
+      });
+      stats.forEach(s=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>Student</td>
+                        <td>${s.name}</td>
+                        <td>${s.visits} visits, ${s.hours.toFixed(1)}h</td>`;
+        tb.appendChild(tr);
+      });
+    }
+
+    function loadReport() {
+      if (!sd.value||!ed.value) return alert('Select both dates');
+      setLoading(true);
+      noD.style.display = 'none';
+      google.script.run
+        .withSuccessHandler(render)
+        .withFailureHandler(e=>{ setLoading(false); alert(e.message); })
+        .getReportData(gr.value, sd.value, ed.value, st.value);
+    }
+
+    btnR.onclick = loadReport;
+    btnE.onclick = () => {
+      google.script.run
+        .withFailureHandler(e=>alert(e.message))
+        .withSuccessHandler(url=>window.open(url))
+        .exportReport(gr.value, sd.value, ed.value, st.value);
+    };
+
+    // ── Section 2: Individual Kid ─────────────────────
+    // default kid date-range = last 7 days
+    (() => {
+      const now = new Date();
+      document.getElementById('kidEnd').value = now.toISOString().slice(0,10);
+      now.setDate(now.getDate()-7);
+      document.getElementById('kidStart').value = now.toISOString().slice(0,10);
+    })();
+
+    document.getElementById('refreshKid').onclick = loadIndividual;
+    document.getElementById('exportKid').onclick  = () => {
+      const html = document.getElementById('kidTable').outerHTML;
+      const win  = window.open();
+      win.document.write(`<html><body>${html}</body></html>`);
+      win.document.close();
+    };
+
+    
+    function renderIndividual(data, grp) {
+      setLoading(false);
+      // summary
+      document.getElementById('kidVisits').innerText = data.totalVisits||0;
+      document.getElementById('kidHours' ).innerText = (data.totalHours||0).toFixed(1)+'h';
+
+      // full date array
+      const start = new Date(document.getElementById('kidStart').value);
+      const end   = new Date(document.getElementById('kidEnd').value);
+      const dates = [];
+      for (let d=new Date(start); d<=end; d.setDate(d.getDate()+1)) {
+        dates.push(new Date(d));
+      }
+
+      // map hours
+      const hourValues = dates.map(d=>{
+        const key = d.toISOString().slice(0,10);
+        return data.timelineHours[key]||0;
+      });
+
+      // in-place update
+      if (!chartKid) {
+        chartKid = new Chart(ctxKid,{
+          type:'line',
+          data:{ labels:dates, datasets:[{
+            label:'Hours', data:hourValues, fill:false, tension:0.2,
+            borderColor:'rgba(66,133,244,0.8)', pointBackgroundColor:'rgba(66,133,244,1)'
+          }]},
+          options:{
+            animation:false, responsive:true, maintainAspectRatio:false,
+            scales:{
+              x:{type:'time',time:{unit:grp},title:{display:true,text:'Date'}},
+              y:{beginAtZero:true,title:{display:true,text:'Hours'}}
+            },
+            plugins:{datalabels:{display:false}}
+          },
+          plugins:[ChartDataLabels]
+        });
+      } else {
+        chartKid.options.scales.x.time.unit = grp;
+        chartKid.data.labels               = dates;
+        chartKid.data.datasets[0].data     = hourValues;
+        chartKid.update();
+      }
+
+      // rebuild table
+      const tb2 = document.querySelector('#kidTable tbody');
+      tb2.innerHTML = '';
+      dates.forEach((dt,i)=>{
+        const visits = data.timeline[dt.toISOString().slice(0,10)]||0;
+        const hrs    = hourValues[i].toFixed(1)+'h';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${dt.toLocaleDateString()}</td><td>${visits}</td><td>${hrs}</td>`;
+        tb2.appendChild(tr);
+      });
+    }
+
+    // ── load & render the raw rows ─────────────────────
+function loadDetails(start, end, kidId) {
+  google.script.run
+    .withSuccessHandler(renderDetails)
+    .getIndividualDetails(start, end, kidId);
+}
+
+function renderDetails(records) {
+  const tb = document.querySelector('#kidDetailsTable tbody');
+  tb.innerHTML = '';
+  if (records.length === 0) {
+    tb.innerHTML = '<tr><td colspan="4" style="text-align:center">No records</td></tr>';
+    return;
+  }
+  records.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.checkin}</td>
+      <td>${r.checkout}</td>
+      <td>${r.duration}</td>
+      <td>${r.notes}</td>
+    `;
+    tb.appendChild(tr);
+  });
+}
+
+
+// ── hook it up under your existing loadIndividual ──
+function loadIndividual() {
+  const kid  = document.getElementById('kidFilter').value;
+  const from = document.getElementById('kidStart').value;
+  const to   = document.getElementById('kidEnd').value;
+  const grp  = document.getElementById('kidGranularity').value;
+  if (!kid||!from||!to) return alert('Select kid and both dates');
+  setLoading(true);
+  google.script.run
+    .withSuccessHandler(data => {
+      renderIndividual(data, grp);
+      loadDetails(from, to, kid);      // ← load the detail rows too
+    })
+    .withFailureHandler(e=>{ setLoading(false); alert(e.message); })
+    .getReportData(grp, from, to, kid);
+}
+
+
+    // ── Initialize Section 1 defaults & load ───────────
+    (() => {
+      const now = new Date();
+      ed.value = now.toISOString().slice(0,10);
+      now.setDate(now.getDate()-7);
+      sd.value = now.toISOString().slice(0,10);
+    })();
+    loadReport();
+  </script>
+</body>
+</html>
+
