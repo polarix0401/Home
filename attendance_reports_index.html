@@ -203,12 +203,6 @@
   <tbody></tbody>
 </table>
 
-
-  <table id="kidTable">
-    <thead><tr><th>Date</th><th>Visits</th><th>Hours</th></tr></thead>
-    <tbody></tbody>
-  </table>
-
   <!-- Loading overlay -->
   <div id="loading">Loading…</div>
 
@@ -355,7 +349,7 @@
 
     document.getElementById('refreshKid').onclick = loadIndividual;
     document.getElementById('exportKid').onclick  = () => {
-      const html = document.getElementById('kidTable').outerHTML;
+      const html = document.getElementById('kidDetailsTable').outerHTML;
       const win  = window.open();
       win.document.write(`<html><body>${html}</body></html>`);
       win.document.close();
@@ -406,17 +400,6 @@
         chartKid.data.datasets[0].data     = hourValues;
         chartKid.update();
       }
-
-      // rebuild table
-      const tb2 = document.querySelector('#kidTable tbody');
-      tb2.innerHTML = '';
-      dates.forEach((dt,i)=>{
-        const visits = data.timeline[dt.toISOString().slice(0,10)]||0;
-        const hrs    = hourValues[i].toFixed(1)+'h';
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${dt.toLocaleDateString()}</td><td>${visits}</td><td>${hrs}</td>`;
-        tb2.appendChild(tr);
-      });
     }
 
     // ── load & render the raw rows ─────────────────────
@@ -475,4 +458,3 @@ function loadIndividual() {
   </script>
 </body>
 </html>
-
